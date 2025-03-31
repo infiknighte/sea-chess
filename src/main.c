@@ -1,6 +1,6 @@
 #include "game.h"
 
-#if defined(PLATFORM_WEB)
+#ifdef PLATFORM_WEB
 #include <emscripten/emscripten.h>
 
 game_t game;
