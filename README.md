@@ -11,7 +11,7 @@ Sea Chess is a chess game written in [C](https://www.c-language.org) with [rayli
 ### Prerequisites
 
 - A C compiler (e.g., GCC or Clang)
-- CMake (version 3.10 or higher recommended)
+- CMake (version 3.11 or higher recommended)
 
 ### Desktop
 
