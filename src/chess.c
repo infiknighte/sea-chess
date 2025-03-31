@@ -34,15 +34,16 @@ void chess_from_fen(chess_t *const chess, const char *fen) {
   chess->full_move = atoi(fen);
 }
 
-chess_result_t chess_make_move(chess_t *const chess, const coord_t piece_coord,
-                               const coord_t move) {
+void chess_make_move(chess_t *const chess, const coord_t piece_coord,
+                     const coord_t move) {
   if (chess->result == CHESS_RESULT_PROMOTION) {
-    return CHESS_RESULT_PROMOTION;
+    return;
   }
 
   const piece_t piece = chess_get_piece_at(chess, piece_coord);
   if (piece.kind == PIECE_KIND_NONE || piece.color != chess->player) {
-    return CHESS_RESULT_ILLEGAL_MOVE;
+    chess->result = CHESS_RESULT_ILLEGAL_MOVE;
+    return;
   }
 
   _chess_update_castle_rights(chess);
@@ -57,8 +58,10 @@ chess_result_t chess_make_move(chess_t *const chess, const coord_t piece_coord,
   }
   moves_free(&legal_moves);
   if (!move_is_legal) {
-    return CHESS_RESULT_ILLEGAL_MOVE;
+    chess->result = CHESS_RESULT_ILLEGAL_MOVE;
+    return;
   }
+  bool is_a_capture = !chess_is_empty_at(chess, move);
 
   _chess_board_move_piece(chess, piece_coord, move);
 
@@ -66,13 +69,12 @@ chess_result_t chess_make_move(chess_t *const chess, const coord_t piece_coord,
     chess->full_move++;
     chess->half_move++;
   }
-  if (piece.kind == PIECE_KIND_PAWN || !chess_is_empty_at(chess, move)) {
+  if (piece.kind == PIECE_KIND_PAWN || is_a_capture) {
     chess->half_move = 0;
   }
 
   if (piece.kind == PIECE_KIND_PAWN && move.rank == (piece.color ? 7 : 0)) {
     chess->result = CHESS_RESULT_PROMOTION;
-    return CHESS_RESULT_PROMOTION;
   }
 
   bool is_en_passant = !coord_is_undefined(chess->en_passant);
@@ -99,16 +101,15 @@ chess_result_t chess_make_move(chess_t *const chess, const coord_t piece_coord,
     _chess_board_move_piece(chess, rook_coord, move_rook);
     chess->castle[piece.color][KING_SIDE_CASTLE] = false;
     chess->castle[piece.color][QUEEN_SIDE_CASTLE] = false;
+    chess->result = CHESS_RESULT_CASTLE;
   }
 
   if (chess_is_in_check(chess)) {
     chess->player = !chess->player;
     chess->result = CHESS_RESULT_CHECK;
-    return CHESS_RESULT_CHECK;
   }
   chess->player = !chess->player;
-  chess->result = CHESS_RESULT_OK;
-  return CHESS_RESULT_OK;
+  chess->result = is_a_capture ? CHESS_RESULT_CAPTURE : CHESS_RESULT_OK;
 }
 
 bool chess_promote(chess_t *chess, coord_t coord, piece_kind_t promotion_kind) {

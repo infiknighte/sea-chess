@@ -29,10 +29,12 @@ void game_init(game_t *const game) {
   game->window.height = INIT_HEIGHT;
   chess_init(&game->chess);
   InitWindow(INIT_WIDTH, INIT_HEIGHT, "chess");
+  InitAudioDevice();
 }
 
 void game_load(game_t *const game) {
   memset(game->textures, 0, sizeof(game->textures));
+  memset(game->sounds, 0, sizeof(game->sounds));
   const char pieces[PIECE_KIND_COUNT] = {'k', 'q', 'r', 'b', 'n', 'p'};
   const char colors[2] = {'b', 'w'};
   for (color_t color = COLOR_BLACK; color < 2; color++) {
@@ -42,6 +44,17 @@ void game_load(game_t *const game) {
                colors[color], pieces[kind - 1]);
       game->textures[color][kind] = LoadTexture(path);
     }
+  }
+
+  const char *sound_name[MAX_SOUNDS] = {
+      "capture",   "castle",   "click",      "drawoffer",
+      "game-draw", "game-end", "game-lose",  "game-start",
+      "game-win",  "illegal",  "move-check", "move-opponent",
+      "move-self", "premove",  "promote",    "tenseconds"};
+  for (uint8_t i = 0; i < MAX_SOUNDS; i++) {
+    char path[sizeof(ASSETS_PATH) + 60];
+    snprintf(path, sizeof(path), ASSETS_PATH "/sounds/%s.mp3", sound_name[i]);
+    game->sounds[i] = LoadSound(path);
   }
 }
 
@@ -62,6 +75,7 @@ void game_update(game_t *const game) {
         chess_promote(&game->chess,
                       _coord_change_to_perspective(game->promotion, player),
                       selected_kind);
+        PlaySound(game->sounds[SOUND_PROMOTE]);
         game->promotion = COORD_UNDEFINED;
       }
 
@@ -75,6 +89,7 @@ void game_update(game_t *const game) {
                                _coord_change_to_perspective(coord, player)) &&
             game->chess.player == piece.color) {
           game->selected = coord;
+          PlaySound(game->sounds[SOUND_CLICK]);
         }
       } else {
         const piece_t selected_piece = chess_get_piece_at(
@@ -85,16 +100,42 @@ void game_update(game_t *const game) {
         } else if (piece.kind != PIECE_KIND_NONE &&
                    selected_piece.color == piece.color &&
                    game->chess.player == piece.color) {
+          PlaySound(game->sounds[SOUND_CLICK]);
           game->selected = coord;
 
         } else {
           chess_make_move(&game->chess,
                           _coord_change_to_perspective(game->selected, player),
                           _coord_change_to_perspective(coord, player));
-          if (game->chess.result == CHESS_RESULT_PROMOTION) {
+          switch (game->chess.result) {
+          case CHESS_RESULT_ILLEGAL_MOVE:
+            PlaySound(game->sounds[SOUND_ILLEGAL]);
+            break;
+          case CHESS_RESULT_CHECK:
+            PlaySound(game->sounds[SOUND_MOVE_CHECK]);
+            break;
+          case CHESS_RESULT_CHECKMATE:
+            PlaySound(game->sounds[SOUND_GAME_END]);
+            break;
+          case CHESS_RESULT_STALEMATE:
+            PlaySound(game->sounds[SOUND_DRAW]);
+            break;
+          case CHESS_RESULT_PROMOTION:
             game->promotion = coord;
+            break;
+          case CHESS_RESULT_CAPTURE:
+            PlaySound(game->sounds[SOUND_CAPTURE]);
+            break;
+          case CHESS_RESULT_CASTLE:
+            PlaySound(game->sounds[SOUND_CASTLE]);
+            break;
+          case CHESS_RESULT_OK:
+            PlaySound(game->sounds[SOUND_MOVE_SELF]);
+            break;
           }
-          game->selected = COORD_UNDEFINED;
+          if (game->chess.result != CHESS_RESULT_ILLEGAL_MOVE) {
+            game->selected = COORD_UNDEFINED;
+          }
         }
       }
     }
@@ -107,10 +148,14 @@ void game_update(game_t *const game) {
 
 void game_quit(game_t *const game) {
   CloseWindow();
+  CloseAudioDevice();
   for (color_t color = 0; color < 2; color++) {
     for (piece_kind_t kind = 1; kind <= PIECE_KIND_COUNT; kind++) {
       UnloadTexture(game->textures[color][kind]);
     }
+  }
+  for (uint8_t i = 0; i <= MAX_SOUNDS; i++) {
+    UnloadSound(game->sounds[i]);
   }
 }
 

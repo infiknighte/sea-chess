@@ -41,6 +41,8 @@ typedef enum {
   CHESS_RESULT_CHECKMATE,
   CHESS_RESULT_STALEMATE,
   CHESS_RESULT_PROMOTION,
+  CHESS_RESULT_CAPTURE,
+  CHESS_RESULT_CASTLE,
   CHESS_RESULT_OK,
 } chess_result_t;
 
@@ -89,8 +91,7 @@ typedef struct {
 } chess_t;
 
 void chess_from_fen(chess_t *chess, const char *fen);
-chess_result_t chess_make_move(chess_t *chess, coord_t piece_coord,
-                               coord_t move);
+void chess_make_move(chess_t *chess, coord_t piece_coord, coord_t move);
 moves_t chess_legal_moves_of(chess_t *chess, coord_t piece_coord);
 bool chess_is_in_check(chess_t *chess);
 bool chess_promote(chess_t *chess, coord_t coord, piece_kind_t promotion_kind);
