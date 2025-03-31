@@ -39,7 +39,3 @@ emmake make
 - Add Checkmate and stalemate detection
 - Add AI opponent (Chess bot)
 - Add Time Controls
-
-## License
-
-This project is licensed under the MIT License.
