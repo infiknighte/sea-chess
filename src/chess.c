@@ -378,15 +378,15 @@ static void _chess_update_castle_rights(chess_t *chess) {
 
 static void _chess_board_from_fen(chess_t *chess, const char **const p_fen) {
   memset(chess->board, 0, sizeof(board_t));
-  coord_t coord = {0};
+  coord_t coord = {7, 0};
   while (**p_fen && **p_fen != ' ') {
     if (**p_fen == '/') {
-      coord.rank++;
+      coord.rank--;
       coord.file = 0;
     } else if (**p_fen >= '1' && **p_fen <= '8') {
       coord.file += **p_fen - '0';
     } else {
-      piece_t piece = {.color = (**p_fen >= 'a' && **p_fen <= 'z')
+      piece_t piece = {.color = (**p_fen >= 'A' && **p_fen <= 'Z')
                                     ? COLOR_WHITE
                                     : COLOR_BLACK,
                        .kind = PIECE_KIND_NONE};

@@ -87,6 +87,7 @@ typedef struct {
   uint8_t half_move;
   uint32_t full_move;
   board_t board;
+  bitboard_t bitboards[2][PIECE_KIND_COUNT + 1];
   chess_result_t result;
 } chess_t;
 
