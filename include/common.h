@@ -8,6 +8,6 @@
 
 #define IS_IN_BOUNDS(x, a, b) ((x) >= (a) && (x) < (b))
 
-#define BIT(sq) ((bitboard_t)(1ULL << (sq)))
+#define NTH_BIT(n) ((bitboard_t)(1ULL << (n)))
 
 #endif

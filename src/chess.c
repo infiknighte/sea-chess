@@ -418,6 +418,11 @@ static void _chess_board_from_fen(chess_t *chess, const char **const p_fen) {
       default:
         break;
       }
+
+      if (piece.kind != PIECE_KIND_NONE) {
+        chess->bitboards[piece.color][piece.kind] |=
+            NTH_BIT(coord.rank * 8 + coord.file);
+      }
       chess->board[coord.rank][coord.file] = piece;
       coord.file++;
     }
