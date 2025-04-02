@@ -47,10 +47,8 @@ void game_load(game_t *const game) {
   }
 
   const char *sound_name[MAX_SOUNDS] = {
-      "capture",   "castle",   "click",      "drawoffer",
-      "game-draw", "game-end", "game-lose",  "game-start",
-      "game-win",  "illegal",  "move-check", "move-opponent",
-      "move-self", "premove",  "promote",    "tenseconds"};
+      "capture",  "confirmation", "error",        "generic-notify",
+      "low-time", "move",         "out-of-bound", "social-notify"};
   for (uint8_t i = 0; i < MAX_SOUNDS; i++) {
     char path[sizeof(ASSETS_PATH) + 60];
     snprintf(path, sizeof(path), ASSETS_PATH "/sounds/%s.mp3", sound_name[i]);
@@ -75,7 +73,7 @@ void game_update(game_t *const game) {
         chess_promote(&game->chess,
                       _coord_change_to_perspective(game->promotion, player),
                       selected_kind);
-        PlaySound(game->sounds[SOUND_PROMOTE]);
+        PlaySound(game->sounds[SOUND_MOVE]);
         game->promotion = COORD_UNDEFINED;
       }
 
@@ -89,7 +87,6 @@ void game_update(game_t *const game) {
                                _coord_change_to_perspective(coord, player)) &&
             game->chess.player == piece.color) {
           game->selected = coord;
-          PlaySound(game->sounds[SOUND_CLICK]);
         }
       } else {
         const piece_t selected_piece = chess_get_piece_at(
@@ -100,7 +97,6 @@ void game_update(game_t *const game) {
         } else if (piece.kind != PIECE_KIND_NONE &&
                    selected_piece.color == piece.color &&
                    game->chess.player == piece.color) {
-          PlaySound(game->sounds[SOUND_CLICK]);
           game->selected = coord;
 
         } else {
@@ -109,16 +105,11 @@ void game_update(game_t *const game) {
                           _coord_change_to_perspective(coord, player));
           switch (game->chess.result) {
           case CHESS_RESULT_ILLEGAL_MOVE:
-            PlaySound(game->sounds[SOUND_ILLEGAL]);
-            break;
-          case CHESS_RESULT_CHECK:
-            PlaySound(game->sounds[SOUND_MOVE_CHECK]);
+            PlaySound(game->sounds[SOUND_ERROR]);
             break;
           case CHESS_RESULT_CHECKMATE:
-            PlaySound(game->sounds[SOUND_GAME_END]);
-            break;
           case CHESS_RESULT_STALEMATE:
-            PlaySound(game->sounds[SOUND_DRAW]);
+            PlaySound(game->sounds[SOUND_GENERIC_NOTIFY]);
             break;
           case CHESS_RESULT_PROMOTION:
             game->promotion = coord;
@@ -126,11 +117,10 @@ void game_update(game_t *const game) {
           case CHESS_RESULT_CAPTURE:
             PlaySound(game->sounds[SOUND_CAPTURE]);
             break;
+          case CHESS_RESULT_CHECK:
           case CHESS_RESULT_CASTLE:
-            PlaySound(game->sounds[SOUND_CASTLE]);
-            break;
           case CHESS_RESULT_OK:
-            PlaySound(game->sounds[SOUND_MOVE_SELF]);
+            PlaySound(game->sounds[SOUND_MOVE]);
             break;
           }
           if (game->chess.result != CHESS_RESULT_ILLEGAL_MOVE) {
