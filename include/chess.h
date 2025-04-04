@@ -6,8 +6,7 @@
 #define BOARD_INIT_FEN                                                         \
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-#define COORD_UNDEFINED                                                        \
-  (coord_t) { 8, 8 }
+#define COORD_UNDEFINED 64
 
 #define PIECE_KIND_COUNT 6
 
@@ -15,6 +14,29 @@
 
 #define KING_SIDE_CASTLE 0
 #define QUEEN_SIDE_CASTLE 1
+
+#define MAX_ROOK_RELEVANT_BITS 12
+#define MAX_ROOK_BLOCKER_PERM 4096
+
+#define BOARD_AREA 64
+
+#define RANK_1 0x00000000000000FFULL
+#define RANK_2 0x000000000000FF00ULL
+#define RANK_3 0x0000000000FF0000ULL
+#define RANK_4 0x00000000FF000000ULL
+#define RANK_5 0x000000FF00000000ULL
+#define RANK_6 0x0000FF0000000000ULL
+#define RANK_7 0x00FF000000000000ULL
+#define RANK_8 0xFF00000000000000ULL
+
+#define FILE_A 0x0101010101010101ULL
+#define FILE_B 0x0202020202020202ULL
+#define FILE_C 0x0404040404040404ULL
+#define FILE_D 0x0808080808080808ULL
+#define FILE_E 0x1010101010101010ULL
+#define FILE_F 0x2020202020202020ULL
+#define FILE_G 0x4040404040404040ULL
+#define FILE_H 0x8080808080808080ULL
 
 #ifdef CHESS_DEBUG
 #include <stdio.h>
@@ -66,11 +88,9 @@ typedef struct {
   piece_kind_t kind;
 } piece_t;
 
-typedef piece_t board_t[BOARD_WIDTH][BOARD_WIDTH];
+typedef piece_t board_t[BOARD_AREA];
 
-typedef struct {
-  uint8_t rank, file;
-} coord_t;
+typedef int8_t coord_t;
 
 typedef struct {
   coord_t *ptr;
@@ -87,43 +107,73 @@ typedef struct {
   uint8_t half_move;
   uint32_t full_move;
   board_t board;
+  struct {
+    bitboard_t king[64];
+    bitboard_t knight[64];
+  } moves;
   bitboard_t bitboards[2][PIECE_KIND_COUNT + 1];
+  bitboard_t attacks[2][PIECE_KIND_COUNT + 1][64];
+  bitboard_t rook_mask[BOARD_AREA][MAX_ROOK_BLOCKER_PERM];
   chess_result_t result;
 } chess_t;
 
 void chess_from_fen(chess_t *chess, const char *fen);
 void chess_make_move(chess_t *chess, coord_t piece_coord, coord_t move);
-moves_t chess_legal_moves_of(chess_t *chess, coord_t piece_coord);
+bitboard_t chess_legal_moves_of(chess_t *chess, coord_t piece_coord);
 bool chess_is_in_check(chess_t *chess);
 bool chess_promote(chess_t *chess, coord_t coord, piece_kind_t promotion_kind);
 void moves_init(moves_t *moves);
 void moves_push(moves_t *moves, coord_t move);
 void moves_free(moves_t *moves);
 
+static inline coord_t coord_new(coord_t rank, coord_t file) {
+  return rank * BOARD_WIDTH + file;
+}
+static inline coord_t coord_rank(coord_t coord) { return coord / BOARD_WIDTH; }
+static inline coord_t coord_file(coord_t coord) { return coord % BOARD_WIDTH; }
+static inline coord_t coord_change_file(coord_t coord, coord_t file) {
+  return coord += file;
+}
+static inline coord_t coord_change_rank(coord_t coord, coord_t rank) {
+  return coord + rank * BOARD_WIDTH;
+}
+static inline coord_t coord_change(coord_t coord, coord_t rank, coord_t file) {
+  return coord + rank * BOARD_WIDTH + file;
+}
+static inline bool coord_rank_is_equal(coord_t a, coord_t b) {
+  return coord_rank(a) == coord_rank(b);
+}
+
 static inline void chess_init(chess_t *const chess) {
   chess_from_fen(chess, BOARD_INIT_FEN);
 }
 
-static inline piece_t chess_get_piece_at(const chess_t *const chess,
-                                         const coord_t coord) {
-  return chess->board[coord.rank][coord.file];
-}
-
 static inline bool chess_is_empty_at(const chess_t *const chess,
                                      const coord_t coord) {
-  return chess_get_piece_at(chess, coord).kind == PIECE_KIND_NONE;
+  return chess->board[coord].kind == PIECE_KIND_NONE;
 }
 
 static inline bool piece_is_equal(const piece_t a, const piece_t b) {
   return a.color == b.color && a.kind == b.kind;
 }
 
-static inline bool coord_is_equal(const coord_t a, const coord_t b) {
-  return a.file == b.file && a.rank == b.rank;
+static inline bool coord_is_undefined(const coord_t coord) {
+  return coord == COORD_UNDEFINED;
 }
 
-static inline bool coord_is_undefined(const coord_t coord) {
-  return coord_is_equal(coord, COORD_UNDEFINED);
+static inline bitboard_t
+chess_occupied_squares_of(bitboard_t bitboards[static 2][PIECE_KIND_COUNT + 1],
+                          color_t color) {
+  bitboard_t result = 0;
+  for (uint8_t i = 1; i <= PIECE_KIND_COUNT; i++) {
+    result |= bitboards[color][i];
+  }
+  return result;
 }
+
+bitboard_t find_magic_number(coord_t square,
+                             bitboard_t blockers[static MAX_ROOK_BLOCKER_PERM],
+                             bitboard_t attacks[MAX_ROOK_BLOCKER_PERM],
+                             uint8_t relevant);
 
 #endif
