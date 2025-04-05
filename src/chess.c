@@ -19,9 +19,9 @@ static bitboard_t _chess_legal_moves_of_queen(chess_t *chess, coord_t coord);
 static bitboard_t _chess_legal_moves_of_rook(chess_t *chess, coord_t coord);
 static bitboard_t _chess_legal_moves_of_bishop(chess_t *chess, coord_t coord);
 static void _chess_update_castle_rights(chess_t *chess);
-static bitboard_t _chess_moves_for_pawn(const bitboard_t pawn,
-                                        const color_t color,
-                                        const bitboard_t enemies);
+static bitboard_t _chess_moves_for_pawn(bitboard_t pawn, color_t color,
+                                        bitboard_t enemies,
+                                        bitboard_t en_passant);
 static bitboard_t
 _bitboard_merge(bitboard_t bitboards[static PIECE_KIND_COUNT + 1]);
 static inline bool _coord_is_in_bounds(const coord_t coord);
@@ -59,7 +59,7 @@ void chess_make_move(chess_t *const chess, const coord_t piece_coord,
 
   _chess_update_castle_rights(chess);
 
-  bitboard_t legal_moves = chess_legal_moves_of(chess, piece_coord);
+  const bitboard_t legal_moves = chess_legal_moves_of(chess, piece_coord);
   if (!(legal_moves & (1ULL << move))) {
     chess->result = CHESS_RESULT_ILLEGAL_MOVE;
     return;
@@ -73,46 +73,51 @@ void chess_make_move(chess_t *const chess, const coord_t piece_coord,
     chess->full_move++;
     chess->half_move++;
   }
-  if (piece.kind == PIECE_KIND_PAWN || is_a_capture) {
-    chess->half_move = 0;
-  }
 
-  if (piece.kind == PIECE_KIND_PAWN && move / 8 == (piece.color ? 7 : 0)) {
-    chess->result = CHESS_RESULT_PROMOTION;
-  }
-
-  bool is_en_passant = chess->en_passant != COORD_UNDEFINED;
+  const bool is_en_passant = chess->en_passant != COORD_UNDEFINED;
   if (is_en_passant) {
     if (move == chess->en_passant) {
-      coord_t coord = piece_coord % 8 + (move % 8);
+      const coord_t coord = move + (piece.color ? -8 : 8);
       chess->board[coord].kind = PIECE_KIND_NONE;
+      is_a_capture = true;
     }
     chess->en_passant = COORD_UNDEFINED;
   }
-  if (piece.kind == PIECE_KIND_PAWN &&
-      piece_coord == move + (piece.color ? -2 : 2)) {
-    chess->en_passant = piece_coord + 8 * (piece.color ? 1 : -1);
+
+  if (piece.kind == PIECE_KIND_PAWN) {
+    if (is_a_capture) {
+      chess->half_move = 0;
+    }
+    if (move / 8 == (piece.color ? 7 : 0)) {
+      chess->result = CHESS_RESULT_PROMOTION;
+      return;
+    }
+    if (piece_coord - move == (piece.color ? -16 : 16)) {
+      chess->en_passant = piece_coord + (piece.color ? 8 : -8);
+    }
   }
 
-  bool is_king_side_castle = false;
-  const int8_t diff = piece_coord % 8 - move % 8;
-  if (piece.kind == PIECE_KIND_KING &&
-      (diff == 2 || (is_king_side_castle = diff == -2))) {
-    const coord_t rook_coord = move + (is_king_side_castle ? 1 : -2);
-    const coord_t move_rook = move + (is_king_side_castle ? 5 : 3);
+  if (piece.kind == PIECE_KIND_KING) {
+    bool is_king_side_castle = false;
+    const int8_t diff = piece_coord % 8 - (move % 8);
 
-    _chess_board_move_piece(chess, rook_coord, move_rook);
-    switch (piece.color) {
-    case COLOR_BLACK:
-      chess->castle_rights &=
-          ~(BLACK_KING_SIDE_CASTLE_RIGHT | BLACK_QUEEN_SIDE_CASTLE_RIGHT);
-      break;
-    case COLOR_WHITE:
-      chess->castle_rights &=
-          ~(WHITE_KING_SIDE_CASTLE_RIGHT | WHITE_QUEEN_SIDE_CASTLE_RIGHT);
-      break;
+    if (diff == 2 || (is_king_side_castle = diff == -2)) {
+      const coord_t rook_coord = move / 8 + (is_king_side_castle ? 7 : 0);
+      const coord_t rook_dest = move / 8 + (is_king_side_castle ? 5 : 3);
+
+      _chess_board_move_piece(chess, rook_coord, rook_dest);
+      switch (piece.color) {
+      case COLOR_BLACK:
+        chess->castle_rights &=
+            ~(BLACK_KING_SIDE_CASTLE_RIGHT | BLACK_QUEEN_SIDE_CASTLE_RIGHT);
+        break;
+      case COLOR_WHITE:
+        chess->castle_rights &=
+            ~(WHITE_KING_SIDE_CASTLE_RIGHT | WHITE_QUEEN_SIDE_CASTLE_RIGHT);
+        break;
+      }
+      chess->result = CHESS_RESULT_CASTLE;
     }
-    chess->result = CHESS_RESULT_CASTLE;
   }
 
   if (chess_is_in_check(chess)) {
@@ -147,6 +152,21 @@ bitboard_t chess_legal_moves_of(chess_t *const chess, const coord_t coord) {
   switch (piece.kind) {
   case PIECE_KIND_KING:
     moves = g_KING_MOVES[coord];
+    if (color == COLOR_WHITE) {
+      if (chess->castle_rights & WHITE_KING_SIDE_CASTLE_RIGHT) {
+        moves |= (bit << 2);
+      }
+      if (chess->castle_rights & WHITE_QUEEN_SIDE_CASTLE_RIGHT) {
+        moves |= bit >> 2;
+      }
+    } else {
+      if (chess->castle_rights & BLACK_KING_SIDE_CASTLE_RIGHT) {
+        moves |= (bit << 2);
+      }
+      if (chess->castle_rights & BLACK_QUEEN_SIDE_CASTLE_RIGHT) {
+        moves |= bit >> 2;
+      }
+    }
     break;
   case PIECE_KIND_QUEEN:
     moves = _chess_legal_moves_of_queen(chess, coord);
@@ -161,7 +181,8 @@ bitboard_t chess_legal_moves_of(chess_t *const chess, const coord_t coord) {
     moves = g_KNIGHT_MOVES[coord];
     break;
   case PIECE_KIND_PAWN:
-    moves = _chess_moves_for_pawn(bit, color, enemies);
+    moves =
+        _chess_moves_for_pawn(bit, color, enemies, 1ULL << chess->en_passant);
     break;
   default:
     break;
@@ -179,7 +200,7 @@ static inline void _chess_board_move_piece(chess_t *chess, coord_t from,
   chess->bitboards[piece.color][piece.kind] ^= 1ULL << from;
   chess->bitboards[piece.color][piece.kind] |= 1ULL << to;
   chess->bitboards[captured.color][captured.kind] ^= 1ULL << to;
-  
+
   chess->board[to] = chess->board[from];
   chess->board[from].kind = PIECE_KIND_NONE;
 }
@@ -302,16 +323,17 @@ void _chess_knight_moves_init(void) {
 
 static bitboard_t _chess_moves_for_pawn(const bitboard_t pawn,
                                         const color_t color,
-                                        const bitboard_t enemies) {
+                                        const bitboard_t enemies,
+                                        const bitboard_t en_passant) {
   if (color == COLOR_WHITE) {
     const bitboard_t single_push = (pawn << 8) & ~enemies;
     const bitboard_t double_push = ((single_push & RANK_3) << 8) & ~enemies;
-    const bitboard_t capture = (pawn << 9 | pawn << 7) & enemies;
+    const bitboard_t capture = (pawn << 9 | pawn << 7) & (enemies | en_passant);
     return single_push | double_push | capture;
   } else {
     const bitboard_t single_push = (pawn >> 8) & ~enemies;
     const bitboard_t double_push = ((single_push & RANK_6) >> 8) & ~enemies;
-    const bitboard_t capture = (pawn >> 9 | pawn >> 7) & enemies;
+    const bitboard_t capture = (pawn >> 9 | pawn >> 7) & (enemies | en_passant);
     return single_push | double_push | capture;
   }
 }
