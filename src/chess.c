@@ -81,7 +81,8 @@ void chess_make_move(chess_t *const chess, const coord_t piece_coord,
   bool is_en_passant = chess->en_passant != COORD_UNDEFINED;
   if (is_en_passant) {
     if (move == chess->en_passant) {
-      chess->board[piece_coord / 8][move % 8].kind = PIECE_KIND_NONE;
+      coord_t coord = piece_coord % 8 + (move % 8);
+      chess->board[coord].kind = PIECE_KIND_NONE;
     }
     chess->en_passant = COORD_UNDEFINED;
   }
@@ -117,7 +118,7 @@ bool chess_promote(chess_t *chess, coord_t coord, piece_kind_t promotion_kind) {
       (piece.kind != PIECE_KIND_PAWN || coord / 8 != (piece.color ? 7 : 0))) {
     return false;
   }
-  chess->board[coord / 8][coord % 8] = (piece_t){piece.color, promotion_kind};
+  chess->board[coord] = (piece_t){piece.color, promotion_kind};
   chess->result = CHESS_RESULT_OK;
   chess->player = !chess->player;
 
@@ -182,8 +183,8 @@ void moves_free(moves_t *const moves) {
 
 static inline void _chess_board_move_piece(chess_t *chess, coord_t from,
                                            coord_t to) {
-  chess->board[to / 8][to % 8] = chess->board[from / 8][from % 8];
-  chess->board[from / 8][from % 8].kind = PIECE_KIND_NONE;
+  chess->board[to] = chess->board[from];
+  chess->board[from].kind = PIECE_KIND_NONE;
 }
 
 static void _chess_update_attacks(chess_t *chess) {
@@ -365,69 +366,70 @@ static moves_t _chess_legal_moves_of_pawn(chess_t *const chess,
 
 static void _chess_update_castle_rights(chess_t *chess) {
   for (uint8_t color = 0; color < 2; color++) {
-    const uint8_t rank = color == COLOR_WHITE ? 0 : 7;
+    const uint8_t rank = (color == COLOR_WHITE ? 0 : 7) * 8;
     const bool king_not_moved = piece_is_equal(
-        chess->board[rank][4], (piece_t){color, PIECE_KIND_KING});
+        chess->board[rank + 4], (piece_t){color, PIECE_KIND_KING});
     chess->castle[color][KING_SIDE_CASTLE] &=
-        king_not_moved && piece_is_equal(chess->board[rank][7],
+        king_not_moved && piece_is_equal(chess->board[rank + 7],
                                          (piece_t){color, PIECE_KIND_ROOK});
     chess->castle[color][QUEEN_SIDE_CASTLE] &=
-        king_not_moved && piece_is_equal(chess->board[rank][0],
+        king_not_moved && piece_is_equal(chess->board[rank + 0],
                                          (piece_t){color, PIECE_KIND_ROOK});
   }
 }
 
 static void _chess_board_from_fen(chess_t *chess, const char **const p_fen) {
   memset(chess->board, 0, sizeof(board_t));
-  for (int rank = 7; rank >= 0; rank--) {
-    int file = 0;
-    while (**p_fen && **p_fen != '/' && **p_fen != ' ') {
-      if (**p_fen >= '1' && **p_fen <= '8') {
-        file += **p_fen - '0'; // Skip empty squares
-      } else {
-        piece_t piece = {.color = (**p_fen >= 'A' && **p_fen <= 'Z')
-                                      ? COLOR_WHITE
-                                      : COLOR_BLACK,
-                         .kind = PIECE_KIND_NONE};
 
-        switch (tolower(**p_fen)) {
-        case 'p':
-          piece.kind = PIECE_KIND_PAWN;
-          break;
-        case 'n':
-          piece.kind = PIECE_KIND_KNIGHT;
-          break;
-        case 'b':
-          piece.kind = PIECE_KIND_BISHOP;
-          break;
-        case 'r':
-          piece.kind = PIECE_KIND_ROOK;
-          break;
-        case 'q':
-          piece.kind = PIECE_KIND_QUEEN;
-          break;
-        case 'k':
-          piece.kind = PIECE_KIND_KING;
-          break;
-        default:
-          break; // Invalid character
-        }
+  coord_t coord = 56; // Start at A8 (top-left)
 
-        if (piece.kind != PIECE_KIND_NONE && file < 8) {
-          chess->board[rank][file] = piece;
-          chess->bitboards[piece.color][piece.kind] |= NTH_BIT(rank * 8 + file);
-        }
-        file++;
+  while (coord >= 0 && **p_fen && **p_fen != ' ') {
+    if (**p_fen == '/') {
+      coord -= 16;
+    } else if (**p_fen >= '1' && **p_fen <= '8') {
+      coord += **p_fen - '0';
+    } else {
+      piece_t piece = {.color = (**p_fen >= 'A' && **p_fen <= 'Z')
+                                    ? COLOR_WHITE
+                                    : COLOR_BLACK,
+                       .kind = PIECE_KIND_NONE};
+
+      switch (tolower(**p_fen)) {
+      case 'p':
+        piece.kind = PIECE_KIND_PAWN;
+        break;
+      case 'n':
+        piece.kind = PIECE_KIND_KNIGHT;
+        break;
+      case 'b':
+        piece.kind = PIECE_KIND_BISHOP;
+        break;
+      case 'r':
+        piece.kind = PIECE_KIND_ROOK;
+        break;
+      case 'q':
+        piece.kind = PIECE_KIND_QUEEN;
+        break;
+      case 'k':
+        piece.kind = PIECE_KIND_KING;
+        break;
+      default:
+        break;
       }
-      (*p_fen)++;
+
+      if (piece.kind != PIECE_KIND_NONE && (coord % 8) < 8) {
+        chess->board[coord] = piece;
+        chess->bitboards[piece.color][piece.kind] |= NTH_BIT(coord);
+      }
+
+      coord++;
     }
 
-    if (**p_fen == '/')
-      (*p_fen)++; // Move to next rank
+    (*p_fen)++;
   }
 
   if (**p_fen == ' ')
-    (*p_fen)++; // Skip to next section
+    (*p_fen)++;
 }
 
 static void _chess_fen_parse_castle_rights(bool castle[static 2][2],

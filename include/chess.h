@@ -15,6 +15,8 @@
 #define KING_SIDE_CASTLE 0
 #define QUEEN_SIDE_CASTLE 1
 
+#define BOARD_AREA 64
+
 #ifdef CHESS_DEBUG
 #include <stdio.h>
 #define CHESS_LOG(chess)                                                       \
@@ -65,7 +67,7 @@ typedef struct {
   piece_kind_t kind;
 } piece_t;
 
-typedef piece_t board_t[BOARD_WIDTH][BOARD_WIDTH];
+typedef piece_t board_t[BOARD_AREA];
 
 typedef int8_t coord_t;
 
@@ -103,7 +105,7 @@ static inline void chess_init(chess_t *const chess) {
 
 static inline piece_t chess_get_piece_at(const chess_t *const chess,
                                          const coord_t coord) {
-  return chess->board[coord / 8][coord % 8];
+  return chess->board[coord];
 }
 
 static inline bool chess_is_empty_at(const chess_t *const chess,

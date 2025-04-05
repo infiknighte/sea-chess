@@ -252,18 +252,22 @@ static inline coord_t _coord_from_mouse_pos(Vector2 mouse, uint8_t width) {
 }
 
 static inline coord_t _coord_flip(coord_t coord, color_t player) {
-  if (player == COLOR_WHITE) {
-    // TODO: Make it work!
-    // coord = BOARD_WIDTH - coord - 1;
-    // coord.rank = BOARD_WIDTH - coord.rank - 1;
+  if (player != COLOR_WHITE) {
+    int rank = coord / 8;
+    int file = coord % 8;
+    return (7 - rank) * 8 + (7 - file);
   }
   return coord;
 }
 
 static inline coord_t _coord_change_to_perspective(coord_t coord,
                                                    color_t player) {
+  int rank = coord / 8;
+  int file = coord % 8;
+
   if (player == COLOR_WHITE) {
-    // TODO: Make it work
+    return (7 - rank) * 8 + file;
+  } else {
+    return rank * 8 + (7 - file);
   }
-  return coord;
 }
