@@ -82,7 +82,7 @@ void game_update(game_t *const game) {
       const piece_t piece = chess_get_piece_at(
           &game->chess, _coord_change_to_perspective(coord, player));
 
-      if (coord_is_undefined(game->selected)) {
+      if (game->selected == COORD_UNDEFINED) {
         if (!chess_is_empty_at(&game->chess,
                                _coord_change_to_perspective(coord, player)) &&
             game->chess.player == piece.color) {
@@ -92,7 +92,7 @@ void game_update(game_t *const game) {
         const piece_t selected_piece = chess_get_piece_at(
             &game->chess, _coord_change_to_perspective(game->selected, player));
 
-        if (coord_is_equal(coord, game->selected)) {
+        if (coord == game->selected) {
           game->selected = COORD_UNDEFINED;
         } else if (piece.kind != PIECE_KIND_NONE &&
                    selected_piece.color == piece.color &&
@@ -155,14 +155,14 @@ static void _game_render_board(game_t *const game) {
 
   for (uint8_t i = 0; i < BOARD_WIDTH; i++) {
     for (uint8_t j = 0; j < BOARD_WIDTH; j++) {
-      const coord_t coord = _coord_flip((coord_t){i, j}, player);
-      DrawRectangle(coord.file * width, coord.rank * width, width, width,
+      const coord_t coord = _coord_flip(i * 8 + j, player);
+      DrawRectangle((coord % 8) * width, (coord / 8) * width, width, width,
                     (i + j) % 2 == 0 ? WHITE : DARKGREEN);
     }
   }
-  if (!coord_is_undefined(game->selected)) {
-    DrawRectangle(game->selected.file * width, game->selected.rank * width,
-                  width, width, Fade(YELLOW, 0.3));
+  if (game->selected != COORD_UNDEFINED) {
+    DrawRectangle(game->selected % 8 * width, game->selected / 8 * width, width,
+                  width, Fade(YELLOW, 0.3));
   }
 }
 
@@ -187,11 +187,11 @@ static void _game_render_pieces(game_t *const game) {
   const color_t player = game->chess.player;
   for (uint8_t i = 0; i < BOARD_WIDTH; i++) {
     for (uint8_t j = 0; j < BOARD_WIDTH; j++) {
-      coord_t coord = _coord_change_to_perspective((coord_t){i, j}, player);
-      const piece_t piece = chess_get_piece_at(&game->chess, (coord_t){i, j});
+      coord_t coord = _coord_change_to_perspective(i * 8 + j, player);
+      const piece_t piece = chess_get_piece_at(&game->chess, i * 8 + j);
       if (piece.kind != PIECE_KIND_NONE) {
         _draw_texture_as_square(game->textures[piece.color][piece.kind],
-                                coord.file * width, coord.rank * width, width,
+                                coord % 8 * width, coord / 8 * width, width,
                                 WHITE);
       }
     }
@@ -199,7 +199,7 @@ static void _game_render_pieces(game_t *const game) {
 }
 
 static void _game_render_moves(game_t *const game) {
-  if (coord_is_undefined(game->selected)) {
+  if (game->selected != COORD_UNDEFINED) {
     return;
   }
   const color_t player = game->chess.player;
@@ -212,8 +212,8 @@ static void _game_render_moves(game_t *const game) {
   const uint8_t width = _game_get_square_width(game->window);
   for (uint32_t i = 0; i < moves.count; i++) {
     const coord_t move = _coord_change_to_perspective(moves.ptr[i], player);
-    DrawCircle((move.file * width) + (width / 2),
-               (move.rank * width) + (width / 2), (float)width / 4,
+    DrawCircle((move % 8 * width) + (width / 2),
+               (move / 8 * width) + (width / 2), (float)width / 4,
                Fade(BLACK, 0.7));
   }
   moves_free(&moves);
@@ -248,14 +248,14 @@ static inline uint8_t _game_get_square_width(window_t window) {
 }
 
 static inline coord_t _coord_from_mouse_pos(Vector2 mouse, uint8_t width) {
-  return (coord_t){.rank = floorf(mouse.y / (float)width),
-                   .file = floorf(mouse.x / (float)width)};
+  return floorf(mouse.y / (float)width) * 8 + floorf(mouse.x / (float)width);
 }
 
 static inline coord_t _coord_flip(coord_t coord, color_t player) {
   if (player == COLOR_WHITE) {
-    coord.file = BOARD_WIDTH - coord.file - 1;
-    coord.rank = BOARD_WIDTH - coord.rank - 1;
+    // TODO: Make it work!
+    // coord = BOARD_WIDTH - coord - 1;
+    // coord.rank = BOARD_WIDTH - coord.rank - 1;
   }
   return coord;
 }
@@ -263,7 +263,7 @@ static inline coord_t _coord_flip(coord_t coord, color_t player) {
 static inline coord_t _coord_change_to_perspective(coord_t coord,
                                                    color_t player) {
   if (player == COLOR_WHITE) {
-    coord.rank = BOARD_WIDTH - coord.rank - 1;
+    // TODO: Make it work
   }
   return coord;
 }

@@ -6,8 +6,7 @@
 #define BOARD_INIT_FEN                                                         \
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-#define COORD_UNDEFINED                                                        \
-  (coord_t) { 8, 8 }
+#define COORD_UNDEFINED 64
 
 #define PIECE_KIND_COUNT 6
 
@@ -68,9 +67,7 @@ typedef struct {
 
 typedef piece_t board_t[BOARD_WIDTH][BOARD_WIDTH];
 
-typedef struct {
-  uint8_t rank, file;
-} coord_t;
+typedef int8_t coord_t;
 
 typedef struct {
   coord_t *ptr;
@@ -106,7 +103,7 @@ static inline void chess_init(chess_t *const chess) {
 
 static inline piece_t chess_get_piece_at(const chess_t *const chess,
                                          const coord_t coord) {
-  return chess->board[coord.rank][coord.file];
+  return chess->board[coord / 8][coord % 8];
 }
 
 static inline bool chess_is_empty_at(const chess_t *const chess,
@@ -116,14 +113,6 @@ static inline bool chess_is_empty_at(const chess_t *const chess,
 
 static inline bool piece_is_equal(const piece_t a, const piece_t b) {
   return a.color == b.color && a.kind == b.kind;
-}
-
-static inline bool coord_is_equal(const coord_t a, const coord_t b) {
-  return a.file == b.file && a.rank == b.rank;
-}
-
-static inline bool coord_is_undefined(const coord_t coord) {
-  return coord_is_equal(coord, COORD_UNDEFINED);
 }
 
 #endif
