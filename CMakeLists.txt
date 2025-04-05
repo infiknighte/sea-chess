@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0.0) # FetchContent is available in 3.11+
+cmake_minimum_required(VERSION 3.11) # FetchContent is available in 3.11+
 project(sea-chess)
 add_compile_options(-pedantic)
 set(C_STANDARD 23)
