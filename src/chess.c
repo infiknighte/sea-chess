@@ -18,13 +18,14 @@ static bitboard_t _chess_legal_moves_of_king(chess_t *chess, coord_t coord);
 static bitboard_t _chess_legal_moves_of_queen(chess_t *chess, coord_t coord);
 static bitboard_t _chess_legal_moves_of_rook(chess_t *chess, coord_t coord);
 static bitboard_t _chess_legal_moves_of_bishop(chess_t *chess, coord_t coord);
-static bitboard_t _chess_legal_moves_of_knight(chess_t *chess, coord_t coord);
 static bitboard_t _chess_legal_moves_of_pawn(chess_t *chess, coord_t coord);
 static inline bool _coord_is_in_bounds(const coord_t coord);
 static void _chess_update_castle_rights(chess_t *chess);
 void _chess_king_moves_init(void);
+void _chess_knight_moves_init(void);
 
-static bitboard_t _KING_MOVES[BOARD_AREA];
+static bitboard_t g_KING_MOVES[BOARD_AREA];
+static bitboard_t g_KNIGHT_MOVES[BOARD_AREA];
 
 void chess_from_fen(chess_t *const chess, const char *fen) {
   memset(chess, 0, sizeof(chess_t));
@@ -37,6 +38,7 @@ void chess_from_fen(chess_t *const chess, const char *fen) {
   chess->full_move = atoi(fen);
 
   _chess_king_moves_init();
+  _chess_knight_moves_init();
 }
 
 void chess_make_move(chess_t *const chess, const coord_t piece_coord,
@@ -54,7 +56,7 @@ void chess_make_move(chess_t *const chess, const coord_t piece_coord,
   _chess_update_castle_rights(chess);
 
   bitboard_t legal_moves = chess_legal_moves_of(chess, piece_coord);
-  if (!(legal_moves & (1 << move))) {
+  if (!(legal_moves & (1ULL << move))) {
     chess->result = CHESS_RESULT_ILLEGAL_MOVE;
     return;
   }
@@ -130,27 +132,27 @@ bool chess_promote(chess_t *chess, coord_t coord, piece_kind_t promotion_kind) {
   return true;
 }
 
-bitboard_t chess_legal_moves_of(chess_t *const chess, const coord_t origin) {
-  const piece_t piece = chess_get_piece_at(chess, origin);
+bitboard_t chess_legal_moves_of(chess_t *const chess, const coord_t coord) {
+  const piece_t piece = chess_get_piece_at(chess, coord);
   bitboard_t moves = 0;
   switch (piece.kind) {
   case PIECE_KIND_KING:
-    moves = _KING_MOVES[origin];
+    moves = g_KING_MOVES[coord];
     break;
   case PIECE_KIND_QUEEN:
-    moves = _chess_legal_moves_of_queen(chess, origin);
+    moves = _chess_legal_moves_of_queen(chess, coord);
     break;
   case PIECE_KIND_ROOK:
-    moves = _chess_legal_moves_of_rook(chess, origin);
+    moves = _chess_legal_moves_of_rook(chess, coord);
     break;
   case PIECE_KIND_BISHOP:
-    moves = _chess_legal_moves_of_bishop(chess, origin);
+    moves = _chess_legal_moves_of_bishop(chess, coord);
     break;
   case PIECE_KIND_KNIGHT:
-    moves = _chess_legal_moves_of_knight(chess, origin);
+    moves = g_KNIGHT_MOVES[coord];
     break;
   case PIECE_KIND_PAWN:
-    moves = _chess_legal_moves_of_pawn(chess, origin);
+    moves = _chess_legal_moves_of_pawn(chess, coord);
     break;
   default:
     break;
@@ -173,57 +175,20 @@ static void _chess_update_attacks(chess_t *chess) {
   }
 }
 
-static bitboard_t _chess_legal_moves_of_king(chess_t *const chess,
-                                             coord_t coord) {
-  bitboard_t moves = 0;
-  const color_t color = chess_get_piece_at(chess, coord).color;
-  const int8_t delta_rank[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
-  const int8_t delta_file[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
-
-  for (uint8_t i = 0; i < 8; i++) {
-    coord_t move =
-        (coord / 8 + delta_rank[i]) * 8 + (coord % 8 + delta_file[i]);
-    if (_coord_is_in_bounds(move) &&
-        (chess_is_empty_at(chess, move) ||
-         chess_get_piece_at(chess, move).color != color)) {
-      moves |= (1 << move);
-    }
-  }
-
-  const uint8_t rank = (color ? 0 : 7) * 8;
-
-  if (chess->castle_rights & (color ? WHITE_KING_SIDE_CASTLE_RIGHT
-                                    : BLACK_KING_SIDE_CASTLE_RIGHT) &&
-      chess_is_empty_at(chess, rank + 6) &&
-      chess_is_empty_at(chess, rank + 5)) {
-    moves |= (1 << (rank + 6));
-  }
-
-  if (chess->castle_rights & (color ? WHITE_QUEEN_SIDE_CASTLE_RIGHT
-                                    : BLACK_QUEEN_SIDE_CASTLE_RIGHT) &&
-      chess_is_empty_at(chess, rank + 1) &&
-      chess_is_empty_at(chess, rank + 2) &&
-      chess_is_empty_at(chess, rank + 3)) {
-    moves |= (1 << (rank + 2));
-  }
-
-  return moves;
-}
-
 void _chess_king_moves_init(void) {
   for (uint8_t i = 0; i < 64; i++) {
-    const bitboard_t king = (1 << i);
+    const bitboard_t king = (1ULL << i);
 
-    _KING_MOVES[i] |= (king << 8) | (king >> 8);
+    g_KING_MOVES[i] |= (king << 8) | (king >> 8);
 
-    _KING_MOVES[i] |= (king << 1) & ~FILE_A;
-    _KING_MOVES[i] |= (king >> 1) & ~FILE_H;
+    g_KING_MOVES[i] |= (king << 1) & ~FILE_A;
+    g_KING_MOVES[i] |= (king >> 1) & ~FILE_H;
 
-    _KING_MOVES[i] |= (king << 9) & ~FILE_A;
-    _KING_MOVES[i] |= (king << 7) & ~FILE_H;
+    g_KING_MOVES[i] |= (king << 9) & ~FILE_A;
+    g_KING_MOVES[i] |= (king << 7) & ~FILE_H;
 
-    _KING_MOVES[i] |= (king >> 7) & ~FILE_H;
-    _KING_MOVES[i] |= (king >> 9) & ~FILE_A;
+    g_KING_MOVES[i] |= (king >> 7) & ~FILE_H;
+    g_KING_MOVES[i] |= (king >> 9) & ~FILE_A;
   }
 }
 
@@ -238,7 +203,7 @@ static bitboard_t _chess_legal_moves_of_queen(chess_t *const chess,
     coord_t move = (coord + delta_rank[i] * 8) + (coord % 8 + delta_file[i]);
 
     while (_coord_is_in_bounds(move) && chess_is_empty_at(chess, move)) {
-      moves |= 1 << move;
+      moves |= 1ULL << move;
       move += 8 * delta_rank[i];
       move += delta_file[i];
     }
@@ -262,14 +227,14 @@ static bitboard_t _chess_legal_moves_of_rook(chess_t *const chess,
     coord_t move = coord / 8 + delta_rank[i] + coord % 8 + delta_file[i];
 
     while (_coord_is_in_bounds(move) && chess_is_empty_at(chess, move)) {
-      moves |= 1 << move;
+      moves |= 1ULL << move;
       move += 8 * delta_rank[i];
       move += delta_file[i];
     }
     if (_coord_is_in_bounds(move) &&
         (!chess_is_empty_at(chess, move) &&
          chess_get_piece_at(chess, move).color != color)) {
-      moves |= 1 << move;
+      moves |= 1ULL << move;
     }
   }
   return moves;
@@ -288,7 +253,7 @@ static bitboard_t _chess_legal_moves_of_bishop(chess_t *const chess,
         ((coord / 8 + delta_rank[i]) * 8) + coord % 8 + delta_file[i];
 
     while (_coord_is_in_bounds(move) && chess_is_empty_at(chess, move)) {
-      moves |= 1 << move;
+      moves |= 1ULL << move;
       move += 8 * delta_rank[i];
       move += delta_file[i];
     }
@@ -296,33 +261,27 @@ static bitboard_t _chess_legal_moves_of_bishop(chess_t *const chess,
     if (_coord_is_in_bounds(move) &&
         (!chess_is_empty_at(chess, coord) &&
          chess_get_piece_at(chess, move).color != color)) {
-      moves |= 1 << move;
+      moves |= 1ULL << move;
     }
   }
 
   return moves;
 }
 
-static bitboard_t _chess_legal_moves_of_knight(chess_t *const chess,
-                                               const coord_t coord) {
-  bitboard_t moves = 0;
+void _chess_knight_moves_init(void) {
+  for (uint8_t i = 0; i < 64; i++) {
+    const bitboard_t knight = 1ULL << i;
 
-  const color_t color = chess_get_piece_at(chess, coord).color;
-  const int8_t delta_rank[8] = {-2, -2, -1, -1, 1, 1, 2, 2};
-  const int8_t delta_file[8] = {-1, 1, -2, 2, -2, 2, -1, 1};
+    g_KNIGHT_MOVES[i] |= ((knight & ~(FILE_A | FILE_B)) << 6);
+    g_KNIGHT_MOVES[i] |= ((knight & ~FILE_A) << 15);
+    g_KNIGHT_MOVES[i] |= ((knight & ~(FILE_H | FILE_G)) << 10);
+    g_KNIGHT_MOVES[i] |= ((knight & ~FILE_H) << 17);
 
-  for (uint8_t i = 0; i < 8; i++) {
-    const coord_t move =
-        ((coord / 8 + delta_rank[i]) * 8) + coord % 8 + delta_file[i];
-
-    if (_coord_is_in_bounds(move) &&
-        (chess_is_empty_at(chess, move) ||
-         chess_get_piece_at(chess, move).color != color)) {
-      moves |= 1 << move;
-    }
+    g_KNIGHT_MOVES[i] |= ((knight & ~(FILE_H | FILE_G)) >> 6);
+    g_KNIGHT_MOVES[i] |= ((knight & ~FILE_H) >> 15);
+    g_KNIGHT_MOVES[i] |= ((knight & ~(FILE_A | FILE_B)) >> 10);
+    g_KNIGHT_MOVES[i] |= ((knight & ~FILE_A) >> 17);
   }
-
-  return moves;
 }
 
 static bitboard_t _chess_legal_moves_of_pawn(chess_t *const chess,
@@ -333,7 +292,7 @@ static bitboard_t _chess_legal_moves_of_pawn(chess_t *const chess,
   coord_t move = coord + d * 8;
 
   if (_coord_is_in_bounds(coord) && chess_is_empty_at(chess, move)) {
-    moves |= 1 << move;
+    moves |= 1ULL << move;
   }
 
   return moves;
@@ -408,7 +367,7 @@ static void _chess_board_from_fen(chess_t *chess, const char **const p_fen) {
 
       if (piece.kind != PIECE_KIND_NONE && (coord % 8) < 8) {
         chess->board[coord] = piece;
-        chess->bitboards[piece.color][piece.kind] |= 1 << coord;
+        chess->bitboards[piece.color][piece.kind] |= 1ULL << coord;
       }
 
       coord++;
