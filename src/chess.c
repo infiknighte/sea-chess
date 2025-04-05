@@ -24,6 +24,8 @@ static moves_t _chess_legal_moves_of_pawn(chess_t *chess, coord_t coord);
 static inline bool _coord_is_in_bounds(const coord_t coord);
 static void _chess_update_castle_rights(chess_t *chess);
 
+static bitboard_t _KING_MOVES[BOARD_AREA];
+
 void chess_from_fen(chess_t *const chess, const char *fen) {
   memset(chess, 0, sizeof(chess_t));
   _chess_board_from_fen(chess, &fen);
@@ -251,6 +253,23 @@ static moves_t _chess_legal_moves_of_king(chess_t *const chess, coord_t coord) {
     break;
   }
   return moves;
+}
+
+void _chess_king_moves_init(void) {
+  for (uint8_t i = 0; i < 64; i++) {
+    const bitboard_t king = NTH_BIT(i);
+
+    _KING_MOVES[i] |= (king << 8) | (king >> 8);
+
+    _KING_MOVES[i] |= (king << 1) & ~FILE_A;
+    _KING_MOVES[i] |= (king >> 1) & ~FILE_H;
+
+    _KING_MOVES[i] |= (king << 9) & ~FILE_A;
+    _KING_MOVES[i] |= (king << 7) & ~FILE_H;
+
+    _KING_MOVES[i] |= (king >> 7) & ~FILE_H;
+    _KING_MOVES[i] |= (king >> 9) & ~FILE_A;
+  }
 }
 
 static moves_t _chess_legal_moves_of_queen(chess_t *const chess,
