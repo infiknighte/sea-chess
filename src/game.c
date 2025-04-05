@@ -199,30 +199,25 @@ static void _game_render_pieces(game_t *const game) {
 }
 
 static void _game_render_moves(game_t *const game) {
-  if (game->selected != COORD_UNDEFINED) {
-    return;
-  }
   const color_t player = game->chess.player;
-  moves_t moves = chess_legal_moves_of(
+  bitboard_t moves = chess_legal_moves_of(
       &game->chess, _coord_change_to_perspective(game->selected, player));
-  if (moves.ptr == NULL || moves.count == 0) {
+  if (!moves) {
     return;
   }
 
   const uint8_t width = _game_get_square_width(game->window);
-  for (uint32_t i = 0; i < moves.count; i++) {
-    const coord_t move = _coord_change_to_perspective(moves.ptr[i], player);
-    DrawCircle((move % 8 * width) + (width / 2),
-               (move / 8 * width) + (width / 2), (float)width / 4,
-               Fade(BLACK, 0.7));
+  for (uint32_t i = 0; i < BOARD_AREA; i++) {
+    if (moves & (1ULL << i)) {
+      const coord_t move = _coord_change_to_perspective(i, player);
+      DrawCircle((move % 8 * width) + (width / 2),
+                 (move / 8 * width) + (width / 2), (float)width / 4,
+                 Fade(BLACK, 0.7));
+    }
   }
-  moves_free(&moves);
 }
 
 static void _game_render_promotion_choices(game_t *const game) {
-  if (game->chess.result != CHESS_RESULT_PROMOTION) {
-    return;
-  }
   const uint8_t sqr_width = _game_get_square_width(game->window);
   uint16_t width = (sqr_width * 8) / 4;
   const color_t color = game->chess.player;
@@ -239,8 +234,12 @@ static void _game_render_promotion_choices(game_t *const game) {
 static void _game_render(game_t *const game) {
   _game_render_board(game);
   _game_render_pieces(game);
-  _game_render_moves(game);
-  _game_render_promotion_choices(game);
+  if (game->selected != COORD_UNDEFINED) {
+    _game_render_moves(game);
+  }
+  if (game->promotion != COORD_UNDEFINED) {
+    _game_render_promotion_choices(game);
+  }
 }
 
 static inline uint8_t _game_get_square_width(window_t window) {

@@ -91,12 +91,6 @@ typedef piece_t board_t[BOARD_AREA];
 
 typedef int8_t coord_t;
 
-typedef struct {
-  coord_t *ptr;
-  uint32_t count;
-  uint32_t capacity;
-} moves_t;
-
 typedef uint64_t bitboard_t;
 
 typedef struct {
@@ -112,12 +106,9 @@ typedef struct {
 
 void chess_from_fen(chess_t *chess, const char *fen);
 void chess_make_move(chess_t *chess, coord_t piece_coord, coord_t move);
-moves_t chess_legal_moves_of(chess_t *chess, coord_t piece_coord);
+bitboard_t chess_legal_moves_of(chess_t *chess, coord_t piece_coord);
 bool chess_is_in_check(chess_t *chess);
 bool chess_promote(chess_t *chess, coord_t coord, piece_kind_t promotion_kind);
-void moves_init(moves_t *moves);
-void moves_push(moves_t *moves, coord_t move);
-void moves_free(moves_t *moves);
 
 static inline void chess_init(chess_t *const chess) {
   chess_from_fen(chess, BOARD_INIT_FEN);
