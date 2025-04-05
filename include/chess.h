@@ -12,8 +12,10 @@
 
 #define MAX_PIECE_COUNT 16
 
-#define KING_SIDE_CASTLE 0
-#define QUEEN_SIDE_CASTLE 1
+#define WHITE_KING_SIDE_CASTLE_RIGHT 0x1
+#define WHITE_QUEEN_SIDE_CASTLE_RIGHT 0x2
+#define BLACK_KING_SIDE_CASTLE_RIGHT 0x4
+#define BLACK_QUEEN_SIDE_CASTLE_RIGHT 0x8
 
 #define BOARD_AREA 64
 
@@ -80,13 +82,13 @@ typedef struct {
 typedef uint64_t bitboard_t;
 
 typedef struct {
-  bool castle[2][2];
-  color_t player;
   coord_t en_passant;
   uint8_t half_move;
+  unsigned _BitInt(4) castle_rights;
   uint32_t full_move;
-  board_t board;
+  color_t player;
   bitboard_t bitboards[2][PIECE_KIND_COUNT + 1];
+  board_t board;
   chess_result_t result;
 } chess_t;
 

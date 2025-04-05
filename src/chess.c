@@ -9,8 +9,8 @@
 static inline void _chess_board_move_piece(chess_t *chess, coord_t from,
                                            coord_t to);
 static void _chess_board_from_fen(chess_t *chess, const char **p_fen);
-static void _chess_fen_parse_castle_rights(bool castle[static 2][2],
-                                           const char **p_fen);
+static void _chess_fen_parse_castle_rights(unsigned _BitInt(4) * castle_rights,
+                                           const char **const p_fen);
 static void _chess_fen_parse_en_passant(coord_t *en_passant,
                                         const char **p_fen);
 static void _chess_fen_parse_half_move(uint8_t *const half_move,
@@ -29,7 +29,7 @@ void chess_from_fen(chess_t *const chess, const char *fen) {
   _chess_board_from_fen(chess, &fen);
   chess->player = (*fen == 'w') ? 1 : 0;
   fen += 2;
-  _chess_fen_parse_castle_rights(chess->castle, &fen);
+  _chess_fen_parse_castle_rights(&chess->castle_rights, &fen);
   _chess_fen_parse_en_passant(&chess->en_passant, &fen);
   _chess_fen_parse_half_move(&chess->half_move, &fen);
   chess->full_move = atoi(fen);
@@ -99,8 +99,16 @@ void chess_make_move(chess_t *const chess, const coord_t piece_coord,
     const coord_t move_rook = move + (is_king_side_castle ? 5 : 3);
 
     _chess_board_move_piece(chess, rook_coord, move_rook);
-    chess->castle[piece.color][KING_SIDE_CASTLE] = false;
-    chess->castle[piece.color][QUEEN_SIDE_CASTLE] = false;
+    switch (piece.color) {
+    case COLOR_BLACK:
+      chess->castle_rights &=
+          ~(BLACK_KING_SIDE_CASTLE_RIGHT | BLACK_QUEEN_SIDE_CASTLE_RIGHT);
+      break;
+    case COLOR_WHITE:
+      chess->castle_rights &=
+          ~(WHITE_KING_SIDE_CASTLE_RIGHT | WHITE_QUEEN_SIDE_CASTLE_RIGHT);
+      break;
+    }
     chess->result = CHESS_RESULT_CASTLE;
   }
 
@@ -212,20 +220,36 @@ static moves_t _chess_legal_moves_of_king(chess_t *const chess, coord_t coord) {
   }
 
   const uint8_t rank = (color ? 0 : 7) * 8;
-  if (chess->castle[color][KING_SIDE_CASTLE] &&
-      chess_is_empty_at(chess, rank + 6) &&
-      chess_is_empty_at(chess, rank + 5)) {
-    moves_push(&moves, rank + 6);
+  switch (color) {
+  case COLOR_BLACK:
+    if (chess->castle_rights & BLACK_KING_SIDE_CASTLE_RIGHT &&
+        chess_is_empty_at(chess, rank + 6) &&
+        chess_is_empty_at(chess, rank + 5)) {
+      moves_push(&moves, rank + 6);
+    }
+
+    if (chess->castle_rights & BLACK_QUEEN_SIDE_CASTLE_RIGHT &&
+        chess_is_empty_at(chess, rank + 1) &&
+        chess_is_empty_at(chess, rank + 2) &&
+        chess_is_empty_at(chess, rank + 3)) {
+      moves_push(&moves, rank + 2);
+    }
+    break;
+  case COLOR_WHITE:
+    if (chess->castle_rights & WHITE_KING_SIDE_CASTLE_RIGHT &&
+        chess_is_empty_at(chess, rank + 6) &&
+        chess_is_empty_at(chess, rank + 5)) {
+      moves_push(&moves, rank + 6);
+    }
+
+    if (chess->castle_rights & WHITE_QUEEN_SIDE_CASTLE_RIGHT &&
+        chess_is_empty_at(chess, rank + 1) &&
+        chess_is_empty_at(chess, rank + 2) &&
+        chess_is_empty_at(chess, rank + 3)) {
+      moves_push(&moves, rank + 2);
+    }
+    break;
   }
-
-  if (chess->castle[color][QUEEN_SIDE_CASTLE] &&
-      chess_is_empty_at(chess, rank + 1) &&
-      chess_is_empty_at(chess, rank + 2) &&
-      chess_is_empty_at(chess, rank + 3)) {
-
-    moves_push(&moves, rank + 2);
-  }
-
   return moves;
 }
 
@@ -369,12 +393,26 @@ static void _chess_update_castle_rights(chess_t *chess) {
     const uint8_t rank = (color == COLOR_WHITE ? 0 : 7) * 8;
     const bool king_not_moved = piece_is_equal(
         chess->board[rank + 4], (piece_t){color, PIECE_KIND_KING});
-    chess->castle[color][KING_SIDE_CASTLE] &=
-        king_not_moved && piece_is_equal(chess->board[rank + 7],
-                                         (piece_t){color, PIECE_KIND_ROOK});
-    chess->castle[color][QUEEN_SIDE_CASTLE] &=
-        king_not_moved && piece_is_equal(chess->board[rank + 0],
-                                         (piece_t){color, PIECE_KIND_ROOK});
+    switch (color) {
+    case COLOR_BLACK:
+      chess->castle_rights &=
+          ~BLACK_KING_SIDE_CASTLE_RIGHT |
+          (king_not_moved && piece_is_equal(chess->board[rank + 7],
+                                            (piece_t){color, PIECE_KIND_ROOK}));
+      chess->castle_rights &= BLACK_QUEEN_SIDE_CASTLE_RIGHT | king_not_moved &&
+                              piece_is_equal(chess->board[rank + 0],
+                                             (piece_t){color, PIECE_KIND_ROOK});
+      break;
+    case COLOR_WHITE:
+      chess->castle_rights &=
+          ~WHITE_KING_SIDE_CASTLE_RIGHT |
+          (king_not_moved && piece_is_equal(chess->board[rank + 7],
+                                            (piece_t){color, PIECE_KIND_ROOK}));
+      chess->castle_rights &= WHITE_QUEEN_SIDE_CASTLE_RIGHT | king_not_moved &&
+                              piece_is_equal(chess->board[rank + 0],
+                                             (piece_t){color, PIECE_KIND_ROOK});
+      break;
+    }
   }
 }
 
@@ -432,21 +470,21 @@ static void _chess_board_from_fen(chess_t *chess, const char **const p_fen) {
     (*p_fen)++;
 }
 
-static void _chess_fen_parse_castle_rights(bool castle[static 2][2],
+static void _chess_fen_parse_castle_rights(unsigned _BitInt(4) * castle_rights,
                                            const char **const p_fen) {
   while (**p_fen && **p_fen != ' ') {
     switch (**p_fen) {
     case 'K':
-      castle[COLOR_WHITE][KING_SIDE_CASTLE] = true;
+      *castle_rights |= WHITE_KING_SIDE_CASTLE_RIGHT;
       break;
     case 'Q':
-      castle[COLOR_WHITE][QUEEN_SIDE_CASTLE] = true;
+      *castle_rights |= WHITE_QUEEN_SIDE_CASTLE_RIGHT;
       break;
     case 'k':
-      castle[COLOR_BLACK][KING_SIDE_CASTLE] = true;
+      *castle_rights |= BLACK_KING_SIDE_CASTLE_RIGHT;
       break;
     case 'q':
-      castle[COLOR_BLACK][QUEEN_SIDE_CASTLE] = true;
+      *castle_rights |= BLACK_QUEEN_SIDE_CASTLE_RIGHT;
       break;
     }
     (*p_fen)++;
