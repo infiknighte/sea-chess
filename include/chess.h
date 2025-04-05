@@ -37,6 +37,7 @@
 
 #define BOARD_AREA 64
 
+#define CHESS_DEBUG
 #ifdef CHESS_DEBUG
 #include <stdio.h>
 #define CHESS_LOG(chess)                                                       \

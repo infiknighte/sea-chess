@@ -18,9 +18,13 @@ static bitboard_t _chess_legal_moves_of_king(chess_t *chess, coord_t coord);
 static bitboard_t _chess_legal_moves_of_queen(chess_t *chess, coord_t coord);
 static bitboard_t _chess_legal_moves_of_rook(chess_t *chess, coord_t coord);
 static bitboard_t _chess_legal_moves_of_bishop(chess_t *chess, coord_t coord);
-static bitboard_t _chess_legal_moves_of_pawn(chess_t *chess, coord_t coord);
-static inline bool _coord_is_in_bounds(const coord_t coord);
 static void _chess_update_castle_rights(chess_t *chess);
+static bitboard_t _chess_moves_for_pawn(const bitboard_t pawn,
+                                        const color_t color,
+                                        const bitboard_t enemies);
+static bitboard_t
+_bitboard_merge(bitboard_t bitboards[static PIECE_KIND_COUNT + 1]);
+static inline bool _coord_is_in_bounds(const coord_t coord);
 void _chess_king_moves_init(void);
 void _chess_knight_moves_init(void);
 
@@ -134,6 +138,11 @@ bool chess_promote(chess_t *chess, coord_t coord, piece_kind_t promotion_kind) {
 
 bitboard_t chess_legal_moves_of(chess_t *const chess, const coord_t coord) {
   const piece_t piece = chess_get_piece_at(chess, coord);
+  const color_t color = piece.color;
+  const bitboard_t bit = 1ULL << coord;
+  const bitboard_t allies = _bitboard_merge(chess->bitboards[color]);
+  const bitboard_t enemies = _bitboard_merge(chess->bitboards[!color]);
+
   bitboard_t moves = 0;
   switch (piece.kind) {
   case PIECE_KIND_KING:
@@ -152,12 +161,12 @@ bitboard_t chess_legal_moves_of(chess_t *const chess, const coord_t coord) {
     moves = g_KNIGHT_MOVES[coord];
     break;
   case PIECE_KIND_PAWN:
-    moves = _chess_legal_moves_of_pawn(chess, coord);
+    moves = _chess_moves_for_pawn(bit, color, enemies);
     break;
   default:
     break;
   }
-  return moves;
+  return moves & ~allies;
 }
 
 bool chess_is_in_check(chess_t *const chess) { return false; }
@@ -284,18 +293,20 @@ void _chess_knight_moves_init(void) {
   }
 }
 
-static bitboard_t _chess_legal_moves_of_pawn(chess_t *const chess,
-                                             const coord_t coord) {
-  bitboard_t moves = 0;
-  const color_t color = chess_get_piece_at(chess, coord).color;
-  const int8_t d = color == COLOR_WHITE ? 1 : -1;
-  coord_t move = coord + d * 8;
-
-  if (_coord_is_in_bounds(coord) && chess_is_empty_at(chess, move)) {
-    moves |= 1ULL << move;
+static bitboard_t _chess_moves_for_pawn(const bitboard_t pawn,
+                                        const color_t color,
+                                        const bitboard_t enemies) {
+  if (color == COLOR_WHITE) {
+    const bitboard_t single_push = (pawn << 8) & ~enemies;
+    const bitboard_t double_push = ((single_push & RANK_3) << 8) & ~enemies;
+    const bitboard_t capture = (pawn << 9 | pawn << 7) & enemies;
+    return single_push | double_push | capture;
+  } else {
+    const bitboard_t single_push = (pawn >> 8) & ~enemies;
+    const bitboard_t double_push = ((single_push & RANK_6) >> 8) & ~enemies;
+    const bitboard_t capture = (pawn >> 9 | pawn >> 7) & enemies;
+    return single_push | double_push | capture;
   }
-
-  return moves;
 }
 
 static void _chess_update_castle_rights(chess_t *chess) {
@@ -427,4 +438,11 @@ static void _chess_fen_parse_half_move(uint8_t *const half_move,
 static inline bool _coord_is_in_bounds(const coord_t coord) {
   return IS_IN_BOUNDS(coord / 8, 0, BOARD_WIDTH) &&
          IS_IN_BOUNDS(coord % 8, 0, BOARD_WIDTH);
+}
+
+static bitboard_t
+_bitboard_merge(bitboard_t bitboards[static PIECE_KIND_COUNT + 1]) {
+  return bitboards[PIECE_KIND_PAWN] | bitboards[PIECE_KIND_KNIGHT] |
+         bitboards[PIECE_KIND_BISHOP] | bitboards[PIECE_KIND_ROOK] |
+         bitboards[PIECE_KIND_QUEEN] | bitboards[PIECE_KIND_KING];
 }
