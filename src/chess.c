@@ -173,6 +173,13 @@ bool chess_is_in_check(chess_t *const chess) { return false; }
 
 static inline void _chess_board_move_piece(chess_t *chess, coord_t from,
                                            coord_t to) {
+  const piece_t piece = chess->board[from];
+  const piece_t captured = chess->board[to];
+
+  chess->bitboards[piece.color][piece.kind] ^= 1ULL << from;
+  chess->bitboards[piece.color][piece.kind] |= 1ULL << to;
+  chess->bitboards[captured.color][captured.kind] ^= 1ULL << to;
+  
   chess->board[to] = chess->board[from];
   chess->board[from].kind = PIECE_KIND_NONE;
 }
