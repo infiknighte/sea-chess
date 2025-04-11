@@ -3,8 +3,7 @@
 
 #include "common.h"
 
-#define BOARD_INIT_FEN                                                         \
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+#define BOARD_INIT_FEN "q7/8/8/8/8/8/8/7Q w KQkq - 0 1"
 
 #define COORD_UNDEFINED 64
 
@@ -34,6 +33,8 @@
 #define FILE_F 0x2020202020202020ULL
 #define FILE_G 0x4040404040404040ULL
 #define FILE_H 0x8080808080808080ULL
+
+#define EDGES (RANK_1 | RANK_8 | FILE_A | FILE_H)
 
 #define BOARD_AREA 64
 
