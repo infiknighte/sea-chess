@@ -3,7 +3,8 @@
 
 #include "common.h"
 
-#define BOARD_INIT_FEN "q7/8/8/8/8/8/8/7Q w KQkq - 0 1"
+#define CHESS_INIT_FEN                                                         \
+  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 #define COORD_UNDEFINED 64
 
@@ -104,6 +105,10 @@ typedef struct {
   bitboard_t bitboards[2][PIECE_KIND_COUNT + 1];
   board_t board;
   chess_result_t result;
+  struct {
+    coord_t from;
+    coord_t to;
+  } last_move;
 } chess_t;
 
 void chess_from_fen(chess_t *chess, const char *fen);
@@ -113,7 +118,7 @@ bool chess_is_in_check(chess_t *chess);
 bool chess_promote(chess_t *chess, coord_t coord, piece_kind_t promotion_kind);
 
 static inline void chess_init(chess_t *const chess) {
-  chess_from_fen(chess, BOARD_INIT_FEN);
+  chess_from_fen(chess, CHESS_INIT_FEN);
 }
 
 static inline piece_t chess_get_piece_at(const chess_t *const chess,
